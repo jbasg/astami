@@ -24,14 +24,66 @@ function Ami(_config) {
   })()
 
   var send = function (action,callback){
-    
 	  socket.write(action);
   }
 
+  var msg_to_object = function(msg){
+    var obj = {};
+    msg.split("\n").forEach(function(e){
+        var part = e.split(":");
+        var key = part.shift().toLowerCase();
+        var value = part.join(":") || '';
+
+        key = key.replace(/-/g, '_').toLowerCase();
+        value = value.replace(/^\s+/g, '').replace(/\s+$/g, '');
+
+          if (key.match(/variable/) !== null && value.match(/=/) !== null ){
+              var subval = value.split("=");
+              if (!obj[key]){
+                  obj[key] = {};
+              }
+              obj[key][subval[0].toLowerCase()] = subval[1].replace(/^\s+/g, '').replace(/\s+$/g, '');
+          } else {
+            obj[key] = value;
+          }
+    })
+    return Promise.resolve(obj);    
+  }
+
+/*
+
+  var msg_to_object = function(msg){
+    var obj = { variables : {} };
+
+    console.log(msg);
+    console.log("*");
+
+    var lines = msg.split(EOL);
+    
+    lines.forEach(function(it){ 
+      var part = it.split(":");
+      
+      var key = part.shift()
+      var value = part.join(":");
+
+      var keySafe = key.replace(/-/g, '_').toLowerCase();
+      var valueSafe = value.replace(/^\s+/g, '').replace(/\s+$/g, '');
+
+      if (keySafe.match(/variable/) !== null && valueSafe.match(/=/) !== null) {
+            var variable = valueSafe.split("=");
+            obj.variables[keySafe.concat('_').concat(variable[0])] = variable[1] || '';
+        } else {
+            obj[keySafe]  =  valueSafe;
+      }
+    })
+
+    return Promise.resolve(obj);
+  }
+*/
   var on_data = function(data){
-    data_received = data_received.concat(data || '');
-    var events = data.split(EOE);
-    data_received = events.pop() || '';
+    data_received = data_received.concat(data);
+    var events = data_received.split(EOE);
+    data_received = events.pop();
     events.forEach(function(it){ 
       self.emit('on_raw_data',it);
     })
@@ -39,8 +91,10 @@ function Ami(_config) {
 
   var on_raw_data = function(data){
     msg_to_object(data)
-      .then(console.log)
-
+      .then(function(rsp){
+        //console.log(rsp);
+        self.emit('event',rsp);
+      })
   }
 
   var on_first_connect = function(data){
@@ -71,29 +125,7 @@ function Ami(_config) {
     console.log("Socket End");
   };
 
-  var msg_to_object = function(msg){
-    var obj = { variables : {} };
-    var lines = msg.split(EOL);
-    console.log(lines);
-    lines.forEach(function(it){ 
-      var part = it.split(":");
-      
-      var key = part.shift()
-      var value = part.join(":");
 
-      var keySafe = key.replace(/-/, '_').toLowerCase();
-      var valueSafe = value.replace(/^\s+/g, '').replace(/\s+$/g, '');
-
-      if (keySafe.match(/variable/) !== null && valueSafe.match(/=/) !== null) {
-            var variable = valueSafe.split("=");
-            obj.variables[keySafe.concat('_').concat(variable[0])] = variable[1] || '';
-        } else {
-            obj[keySafe]  =  valueSafe;
-      }
-    })
-
-    return Promise.resolve(obj);
-  }
 
   this.on('on_raw_data',on_raw_data)
 
