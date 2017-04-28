@@ -49,7 +49,9 @@ function Ami(_config) {
       console.log("INVALID PEER, NOT AN ASTERISK?");
     } else {
      socket.on('data',on_data);
-     send(`Action:login\nUsername:${config.username}\nsecret:1${config.secret}\nactionid:${action_id()}\n\n`);
+     var msg = `Action:login\nUsername:${config.username}\nsecret:${config.secret}\nactionid:${action_id()}\n\n`;
+     console.log(msg);
+     send(msg);
     }
   }
 
