@@ -13,6 +13,8 @@ function Ami(_config) {
   var self = this;
   var EOL = '\r\n';
   var EOE = '\r\n\r\n';
+
+  var callbacks = new Map();
   
 
   var action_id = (function(){
@@ -23,7 +25,8 @@ function Ami(_config) {
     }
   })()
 
-  var send = function (action,callback){
+  self.send = function (action,callback){
+    callbacks.set(action,callback);
 	  socket.write(action);
   }
 
@@ -50,36 +53,6 @@ function Ami(_config) {
     return Promise.resolve(obj);    
   }
 
-/*
-
-  var msg_to_object = function(msg){
-    var obj = { variables : {} };
-
-    console.log(msg);
-    console.log("*");
-
-    var lines = msg.split(EOL);
-    
-    lines.forEach(function(it){ 
-      var part = it.split(":");
-      
-      var key = part.shift()
-      var value = part.join(":");
-
-      var keySafe = key.replace(/-/g, '_').toLowerCase();
-      var valueSafe = value.replace(/^\s+/g, '').replace(/\s+$/g, '');
-
-      if (keySafe.match(/variable/) !== null && valueSafe.match(/=/) !== null) {
-            var variable = valueSafe.split("=");
-            obj.variables[keySafe.concat('_').concat(variable[0])] = variable[1] || '';
-        } else {
-            obj[keySafe]  =  valueSafe;
-      }
-    })
-
-    return Promise.resolve(obj);
-  }
-*/
   var on_data = function(data){
     data_received = data_received.concat(data);
     var events = data_received.split(EOE);
@@ -93,7 +66,13 @@ function Ami(_config) {
     msg_to_object(data)
       .then(function(rsp){
         //console.log(rsp);
-        self.emit('event',rsp);
+        if (rsp.event) {
+          self.emit('event',rsp);
+        } else if (rsp.response) {
+          self.emit('response',rsp);
+        } else {
+          console.log("WITHOUT TYPE",rsp);
+        } 
       })
   }
 
@@ -105,7 +84,7 @@ function Ami(_config) {
      socket.on('data',on_data);
      var msg = `Action:login\nUsername:${config.username}\nsecret:${config.secret}\nactionid:${action_id()}\n\n`;
      console.log(msg);
-     send(msg);
+     self.send(msg);
     }
   }
 
