@@ -1,5 +1,6 @@
 const net = require('net');
 const Events = require('events');
+const log = require('./logger.js');
 
 
 /* config properties
@@ -15,20 +16,28 @@ function Ami(_config) {
   var EOE = '\r\n\r\n';
 
   var callbacks = new Map();
-  
+  var responses = new Map();
+
 
   var action_id = (function(){
     var counter = 0;
     return function(){
-      return counter++;
+      return `act_${counter++}`;
       //return Promise.resolve(counter++);
     }
   })()
 
   self.send = function (action,callback){
-    callbacks.set(action,callback);
-	  socket.write(action);
+    make_action(action)
+    .then(function(str_action){
+      log.info("SEND ACTION ", str_action);
+      callbacks.set(action.actionid,callback);
+	    socket.write(str_action);
+    })
+    .catch(function(err){
+    })
   }
+
 
   var msg_to_object = function(msg){
     var obj = {};
@@ -53,6 +62,35 @@ function Ami(_config) {
     return Promise.resolve(obj);    
   }
 
+  var object_to_msg = function(obj){
+    var msg = '';
+    for (key in obj) { 
+      if (key.toLowerCase()=== 'variables'){
+        continue
+      }
+      msg = msg.concat(key).concat(": ").concat(obj[key]).concat(EOL)  
+    }
+
+    for (key in obj.variables){
+      msg = msg.concat("variable: ").concat(key).concat("=").concat(obj.variables[key]).concat(EOL)
+    }
+
+    msg = msg.concat(EOL);
+
+    return Promise.resolve(msg);
+  }
+
+  var obj_to_msg = function(object){
+    var msg = JSON.stringify(a).replace(/[\"\{\}]/g,'').replace(/\:/g,": ").replace(/\,/g,EOL).concat(EOE);
+    return Promise.resolve(msg);
+  }
+
+  var make_action = function(action){
+    action.actionid = action_id();
+
+    return object_to_msg(action);
+  }
+
   var on_data = function(data){
     data_received = data_received.concat(data);
     var events = data_received.split(EOE);
@@ -63,28 +101,65 @@ function Ami(_config) {
   }
 
   var on_raw_data = function(data){
+    log.trace("ON_RAW_DATA",data);
     msg_to_object(data)
       .then(function(rsp){
-        //console.log(rsp);
         if (rsp.event) {
-          self.emit('event',rsp);
+          self.emit('data_event',rsp);
+          log.debug("ON_RAW_DATA","EVENT",rsp);
         } else if (rsp.response) {
-          self.emit('response',rsp);
+          self.emit('data_response',rsp);
+          log.debug("ON_RAW_DATA","RESPONSE",rsp);
         } else {
-          console.log("WITHOUT TYPE",rsp);
+          log.warn("ON_RAW_DATA","NO TYPE",rsp);
         } 
       })
+  }
+
+  var on_data_event = function(event){
+    if ( typeof (event.actionid) !== 'undefined'
+      && (responses.has(event.actionid))
+      && (responses.has(event.actionid)))
+    {
+      responses.get(event.actionid).events.push(event);
+      if (event.eventlist === 'Complete') {
+        callbacks.get(event.actionid)(responses.get(event.actionid));
+        callbacks.delete(event.actionid);
+        responses.delete(event.actionid);
+      }
+    } else {
+      this.emit("ami_event",event);
+      this.emit(`ami_event_${event.event}`,event);
+
+    }
+  }
+
+  var on_data_response = function(response){
+    if ( ( typeof(response.eventlist) != 'undefined')
+          && (response.eventlist === 'start') )
+    {
+      response.events = [];
+      log.debug('ON_DATA_RESPONSE', response);
+      responses.set(response.actionid,response);
+      console.log(responses.get(response.actionid));
+      log.trace(responses.get(response.actionid));
+    } else if ( callbacks.has(response.actionid)){
+      callbacks.get(response.actionid)(response);
+      callbacks.delete(response.actionid);
+      responses.delete(response.actionid);
+    }
   }
 
   var on_first_connect = function(data){
     var re = new RegExp("Asterisk Call Manager","");
     if (data.match(re) === null) { 
-      console.log("INVALID PEER, NOT AN ASTERISK?");
+      log.error("ON_FIRST_CONNECT","Not Asterisk Call Manager connection");
     } else {
      socket.on('data',on_data);
-     var msg = `Action:login\nUsername:${config.username}\nsecret:${config.secret}\nactionid:${action_id()}\n\n`;
-     console.log(msg);
-     self.send(msg);
+     var msg = { action: 'Login' , username : config.username, secret : config.secret }
+     //var msg = `Action:login\nUsername:${config.username}\nsecret:${config.secret}\nactionid:${action_id()}\n\n`;
+     log.trace('ON FIRST CONNECT',msg);
+     self.send(msg,function(err,data){ log.info(err,data)});
     }
   }
 
@@ -114,6 +189,9 @@ function Ami(_config) {
   socket.on('close',on_socket_close);
   socket.on('timeout',on_socket_timeout);
   socket.on('end',on_socket_end);
+
+  this.on('data_event',on_data_event);
+  this.on('data_response',on_data_response);
 
   socket.connect(config.port || 5038,config.host);
 
