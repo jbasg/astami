@@ -128,6 +128,9 @@ function Ami(_config) {
         responses.delete(event.actionid);
       }
     } else {
+      if (config.name) {
+        event.amihost = config.name;
+      }
       this.emit("ami_event",event);
       this.emit(`ev_${event.event}`,event);
 
@@ -140,8 +143,11 @@ function Ami(_config) {
     {
       response.events = [];
       log.debug('ON_DATA_RESPONSE', response);
+        if (config.name) {
+          response.amihost = config.name;
+        }
       responses.set(response.actionid,response);
-      console.log(responses.get(response.actionid));
+      //console.log(responses.get(response.actionid));
       log.trace(responses.get(response.actionid));
     } else if ( callbacks.has(response.actionid)){
       callbacks.get(response.actionid)(response);
