@@ -3,7 +3,7 @@
 
 module.exports = {
     color : { info : "\x1b[32m", error : "\x1b[31m", warn : "\x1b[33m", debug : "\x1b[34m" ,trace: "\x1b[36m" } ,
-    levels : ['trace','debug','info','warn','error'],
+    levels : ['error','warn','info','debug','trace'],
     level :0 ,
     set_level : function(lv) { level = lv },
 
