@@ -129,7 +129,7 @@ function Ami(_config) {
       }
     } else {
       this.emit("ami_event",event);
-      this.emit(`ami_event_${event.event}`,event);
+      this.emit(`ev_${event.event}`,event);
 
     }
   }
