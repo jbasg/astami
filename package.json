@@ -1,6 +1,6 @@
 {
   "name": "astami",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "description": "Asterisk Manager NodeJS Client",
   "main": "index.js",
   "scripts": {
